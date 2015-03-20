@@ -26,11 +26,17 @@
 #include <cstdio>     // getchar()
 #include <wiringPi.h> // wiringPi library for I/O operations & 
 #include "RazorAHRS.h"
+#include "PID.h"
 #define TILT_ZERO 90 //angle read by IMU when upright. 
 
 using namespace std; //leaving here because of existing code, really don't like this
 float tilt = 0; //global variable to determine the angle of the wheel
 int direction = 0; //global variable to determine the desired angle of the wheel
+double desVal; //global variable of the desired wheel angle
+double Kp = 0.005;
+double Ki = 0.01;
+double Kd = 0.025;
+double PWMsignal;
 
 // Set your serial port here!
 //const string serial_port_name = "/dev/tty.FireFly-6162-SPP"; 
@@ -95,27 +101,43 @@ PI_THREAD(DataAcquisition) //thread to get the angle from the IMU
 	getData;
 }
 
-PI_THREAD(MotorControl) //takes IMU angle, and sensor information, and calculates where the battery should be moved to. 
+PI_THREAD(ServoControl) //takes IMU angle, and sensor information, and calculates where the battery should be moved to. 
 {			//Uses PID controller code to send out PWM signal to motor
 			//Additionally, signal to ESC is sent from here as well (need to figure that out)
-
+try
+	{
 	switch(direction) {
 		case 0: { //go forward
+			desVal = TILT_ZERO;
+			PWMsignal = PID(tilt, desVal, Kp, Ki, Kd);
+			break;
 			}
 		case 1: { //go forward and right
+			desVal = 
 			} 
 		case 2: { //go forward and left
 			}
 		case 3: { //go backwards
+			desVal = TILT_ZERO;
+			PWMsignal = PID(tilt, desVal, Kp, Ki, Kd);
 			}
 		case 4: { //go back and right
 			}
 		case 5: { //go back and left
 			}
 		case 6: { //stand still (primarily test code)
+			desVal = TILT_ZERO;
+			PWMsignal = PID(tilt, desVal, Kp, Ki, Kd);
 			}
 	}
+	}
 
+catch(runtime_error &e)
+  {
+    cout << "  " << (string("Could not control motor") + string(e.what())) << endl;
+    cout << "  " << "Did you set your serial port in Example.cpp?" << endl;
+    return 0; 
+  }
 	
 }
 
@@ -126,6 +148,25 @@ PI_THREAD(WatchSensors) //monitors sensors, and decides what direction the robot
 	SenFR //Front right sensor
 	SenRL //Rear left sensor
 	SenRR //Rear right sensor
+}
+
+PI_THREAD(MotorControl) //controls drive motor
+
+{
+	if(direction >= 0 || direction <=2)
+	{
+		//WiringPi command to ESC
+	}
+
+	else if (direction > 2 || direction < 6)
+	{
+		//WiringPi command to ESC for reverse
+	}
+
+	else if (direction = 6)
+	{
+		//WiringPi command for standstill
+	}
 }
 
 RazorAHRS *razor;
@@ -140,7 +181,8 @@ int main()
   
   x = piThreadCreate(DataAcquisition);
   y = piThreadCreate(WatchSensors);
-  z = piThreadCreate(MotorControl); 
+  z = piThreadCreate(ServoControl); 
+  v = piThreadCreate(MotorControl);
   
  
   getchar();  // wait for RETURN key
